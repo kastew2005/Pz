@@ -8,9 +8,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Мёртвый Город" />
-    <link rel="manifest" href="/manifest.json" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
-    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
     <meta name="description" content="Мёртвый Город — хардкорное зомби-выживание в духе Project Zomboid: FOV, слух зомби, инфекции, лут и крафт. Оффлайн-PWA." />
     <title>МЁРТВЫЙ ГОРОД — зомби-выживание</title>
     <style>
@@ -22,7 +22,16 @@
       #boot-screen small{display:block;margin-top:12px;color:#77775f;font-size:10px;letter-spacing:.18em}
       .boot-track{height:5px;background:#24271e;margin-top:22px;overflow:hidden}
       .boot-track i{display:block;height:100%;width:35%;background:#aaa17a;animation:boot-progress 1.2s ease-in-out infinite alternate}
-      #boot-screen button{margin-top:18px;padding:13px 18px;background:#5c6044;color:#f2edcf;border:1px solid #aaa17a;font-weight:700;letter-spacing:.06em}
+      #boot-screen button{margin-top:18px;padding:13px 18px;background:#5c6044;color:#f2edcf;border:1px solid #aaa17a;font-weight:700;letter-spacing:.06em;border-radius:3px}
+      .boot-console{margin-top:18px;text-align:left;border:1px solid #393e31;background:#030403;color:#c4c9b7}
+      .boot-console-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;background:#171b14;border-bottom:1px solid #393e31;font:700 11px ui-monospace,monospace;letter-spacing:.12em}
+      .boot-console-head button{margin:0;padding:6px 8px;font-size:10px;letter-spacing:0}
+      #boot-log{box-sizing:border-box;max-height:170px;min-height:78px;overflow:auto;padding:9px 10px;white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;color:#b8c6a7;text-align:left}
+      .boot-log-line{margin:0 0 5px}
+      .boot-log-error{color:#ff8e80}
+      .boot-log-warn{color:#e8d18c}
+      .boot-log-info{color:#a9c9ee}
+      @media(max-height:700px){.boot-panel{padding:18px 16px}.boot-track{margin-top:14px}#boot-log{max-height:110px;min-height:55px}}
       @keyframes boot-progress{from{transform:translateX(-10%);width:25%}to{transform:translateX(300%);width:40%}}
     </style>
   </head>
@@ -33,10 +42,91 @@
         <h1>МЁРТВЫЙ ГОРОД</h1>
         <p>Подготовка к выживанию…</p>
         <div class="boot-track"><i></i></div>
-        <small>ЗАГРУЗКА ИГРОВОГО ЯДРА · V3</small>
+        <small>ЗАГРУЗКА ИГРОВОГО ЯДРА · V5 DEBUG</small>
+        <section class="boot-console" aria-label="Консоль диагностики">
+          <div class="boot-console-head"><span>КОНСОЛЬ ЗАПУСКА</span><button id="boot-copy" type="button">КОПИРОВАТЬ ЛОГ</button></div>
+          <div id="boot-log" role="log" aria-live="polite"><div class="boot-log-line boot-log-info">[BOOT] Диагностика инициализирована. Ожидание запуска модулей…</div></div>
+        </section>
       </div>
     </div>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      (() => {
+        const screen = document.getElementById('boot-screen');
+        const logBox = document.getElementById('boot-log');
+        const lines = [];
+        let done = false;
+        const safeText = (value) => {
+          if (value instanceof Error) return value.stack || (value.name + ': ' + value.message);
+          if (typeof value === 'string') return value;
+          try { return JSON.stringify(value); } catch (_) { return String(value); }
+        };
+        const log = (level, ...values) => {
+          const message = values.map(safeText).join(' ');
+          const stamp = new Date().toLocaleTimeString();
+          const line = '[' + stamp + '] [' + level.toUpperCase() + '] ' + message;
+          lines.push(line);
+          if (lines.length > 160) lines.shift();
+          if (logBox) {
+            const row = document.createElement('div');
+            row.className = 'boot-log-line ' + (level === 'error' ? 'boot-log-error' : level === 'warn' ? 'boot-log-warn' : level === 'info' ? 'boot-log-info' : '');
+            row.textContent = line;
+            logBox.appendChild(row);
+            while (logBox.children.length > 160) logBox.removeChild(logBox.firstChild);
+            logBox.scrollTop = logBox.scrollHeight;
+          }
+        };
+        window.__bootLog = log;
+        window.__bootDone = () => { done = true; log('info', 'Игровой интерфейс сообщил об успешной инициализации.'); };
+        ['error', 'warn'].forEach((level) => {
+          const original = console[level].bind(console);
+          console[level] = (...args) => { log(level, ...args); original(...args); };
+        });
+        window.addEventListener('error', (event) => {
+          const target = event.target;
+          if (target && target !== window && (target.src || target.href)) {
+            log('error', 'Не удалось загрузить ресурс:', target.src || target.href);
+            return;
+          }
+          const detail = event.error || event.message || 'Неизвестная ошибка JavaScript';
+          log('error', detail, event.filename ? (event.filename + ':' + event.lineno + ':' + event.colno) : '');
+          if (!done && screen) {
+            const p = screen.querySelector('p');
+            if (p) p.textContent = 'Ошибка запуска. Подробности см. в консоли ниже.';
+          }
+        }, true);
+        window.addEventListener('unhandledrejection', (event) => {
+          log('error', 'Необработанный Promise:', event.reason || 'причина не указана');
+          if (!done && screen) {
+            const p = screen.querySelector('p');
+            if (p) p.textContent = 'Ошибка асинхронного запуска. Подробности см. в консоли ниже.';
+          }
+        });
+        document.getElementById('boot-copy')?.addEventListener('click', async () => {
+          const text = lines.join('\n');
+          try {
+            await navigator.clipboard.writeText(text);
+            log('info', 'Лог скопирован в буфер обмена.');
+          } catch (_) {
+            const area = document.createElement('textarea');
+            area.value = text; area.style.position = 'fixed'; area.style.opacity = '0';
+            document.body.appendChild(area); area.select();
+            const copied = document.execCommand('copy'); area.remove();
+            log(copied ? 'info' : 'warn', copied ? 'Лог скопирован.' : 'Не удалось скопировать. Выделите текст консоли вручную.');
+          }
+        });
+        log('info', 'Страница загружена:', location.href);
+        log('info', 'Режим:', location.protocol, 'User-Agent:', navigator.userAgent);
+        window.setTimeout(() => {
+          if (done || !screen || screen.style.display === 'none') return;
+          const p = screen.querySelector('p');
+          if (p && /Подготовка к выживанию|Загрузка модулей|Подготовка игрового мира/.test(p.textContent || '')) {
+            p.textContent = 'Запуск не завершён за 12 секунд. Последние сообщения и ошибки находятся в консоли ниже.';
+            log('error', 'Тайм-аут запуска: приложение не сообщило об успешной инициализации за 12 секунд.');
+          }
+        }, 12000);
+      })();
+    </script>
+    <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>
