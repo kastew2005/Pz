@@ -1,0 +1,19 @@
+{
+  "name": "Мёртвый Город — Зомби Выживание",
+  "short_name": "МёртвыйГород",
+  "description": "Хардкорное зомби-выживание в духе Project Zomboid. FOV, слух зомби, укусы, лут, крафт. Работает оффлайн.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#070907",
+  "theme_color": "#070907",
+  "lang": "ru",
+  "categories": ["games"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
