@@ -1,45 +1,56 @@
-/* МЁРТВЫЙ ГОРОД — Service Worker: оффлайн-кэш PWA */
-const CACHE = 'mertvy-gorod-v1';
-const PRECACHE = ['/', '/index.html', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
+/* МЁРТВЫЙ ГОРОД — устойчивый офлайн-кэш PWA */
+const CACHE = 'mertvy-gorod-v2';
+const PRECACHE = ['/', '/index.html', '/manifest.json'];
 
-self.addEventListener('install', (e) => {
-  e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting())
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE)
+      .then((cache) => Promise.all(PRECACHE.map((url) =>
+        cache.add(url).catch((error) => console.warn('Не удалось добавить в кэш:', url, error))
+      )))
+      .then(() => self.skipWaiting())
   );
 });
 
-self.addEventListener('activate', (e) => {
-  e.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
-    ).then(() => self.clients.claim())
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim())
   );
 });
 
-self.addEventListener('fetch', (e) => {
-  const req = e.request;
-  if (req.method !== 'GET') return;
-  // навигация — отдаём app shell
-  if (req.mode === 'navigate') {
-    e.respondWith(
-      fetch(req).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put('/', copy));
-        return res;
-      }).catch(() => caches.match('/') )
+self.addEventListener('fetch', (event) => {
+  const request = event.request;
+  if (request.method !== 'GET') return;
+
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).then((response) => {
+        if (response && response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE).then((cache) => cache.put('/', copy)).catch(() => {});
+        }
+        return response;
+      }).catch(async () => (await caches.match(request)) || (await caches.match('/')) ||
+        new Response('Нет подключения и сохранённой страницы. Откройте игру онлайн хотя бы один раз.', {
+          status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+        }))
     );
     return;
   }
-  // остальное — cache-first с дозаписью
-  e.respondWith(
-    caches.match(req).then((hit) =>
-      hit || fetch(req).then((res) => {
-        if (res && res.ok && new URL(req.url).origin === location.origin) {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy));
+
+  if (new URL(request.url).origin !== self.location.origin) return;
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      if (cached) return cached;
+      return fetch(request).then((response) => {
+        if (response && response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => {});
         }
-        return res;
-      }).catch(() => hit)
-    )
+        return response;
+      });
+    })
   );
 });

@@ -1,3 +1,5 @@
+function safeGetBest() { try { return parseInt(localStorage.getItem('mz_best') || '0', 10) || 0; } catch { return 0; } }
+
 // ===================== game.js — оркестратор, цикл, действия, события =====================
 import * as CONSTS from './consts.js';
 import { TILE, ITEMS, clamp, rand, randi, chance, dist, svgIcon } from './consts.js';
@@ -14,7 +16,7 @@ export function createGame(root) {
     consts: CONSTS,
     started: false, over: false,
     stats: { kills: 0, daysSurvived: 0 },
-    best: parseInt(localStorage.getItem('mz_best') || '0', 10),
+    best: safeGetBest(),
     alarm: null, heli: null,
     delays: [],
     timed: null,
@@ -296,7 +298,7 @@ export function createGame(root) {
     const days = G.world.time.day - 1 + (G.world.hour() >= 9 ? 1 : 0);
     const daysShown = Math.max(0, G.world.time.day - 1);
     const best = Math.max(G.best, daysShown);
-    localStorage.setItem('mz_best', String(best));
+    try { localStorage.setItem('mz_best', String(best)); } catch (e) { console.warn('Не удалось сохранить рекорд:', e); }
     G.audio.sting();
     if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([200, 100, 300]);
     G.ui.fade(() => {

@@ -13,8 +13,29 @@
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <meta name="description" content="Мёртвый Город — хардкорное зомби-выживание в духе Project Zomboid: FOV, слух зомби, инфекции, лут и крафт. Оффлайн-PWA." />
     <title>МЁРТВЫЙ ГОРОД — зомби-выживание</title>
+    <style>
+      #boot-screen{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#20251b 0%,#0b0e0a 68%,#050605 100%);color:#d8d0b0;font-family:system-ui,-apple-system,sans-serif;text-align:center;padding:24px}
+      .boot-panel{width:min(420px,100%);padding:30px 22px;border:1px solid #66664c;background:rgba(7,9,7,.88);box-shadow:0 18px 60px #0009}
+      .boot-mark{width:56px;height:56px;margin:0 auto 18px;border:2px solid #918b65;display:grid;place-items:center;font-weight:900;letter-spacing:2px;color:#bdb58b}
+      #boot-screen h1{font-size:clamp(20px,5vw,30px);letter-spacing:.13em;margin:0 0 12px}
+      #boot-screen p{font-size:14px;color:#a7a48a;overflow-wrap:anywhere}
+      #boot-screen small{display:block;margin-top:12px;color:#77775f;font-size:10px;letter-spacing:.18em}
+      .boot-track{height:5px;background:#24271e;margin-top:22px;overflow:hidden}
+      .boot-track i{display:block;height:100%;width:35%;background:#aaa17a;animation:boot-progress 1.2s ease-in-out infinite alternate}
+      #boot-screen button{margin-top:18px;padding:13px 18px;background:#5c6044;color:#f2edcf;border:1px solid #aaa17a;font-weight:700;letter-spacing:.06em}
+      @keyframes boot-progress{from{transform:translateX(-10%);width:25%}to{transform:translateX(300%);width:40%}}
+    </style>
   </head>
   <body>
+    <div id="boot-screen" role="status" aria-live="polite">
+      <div class="boot-panel">
+        <div class="boot-mark">МГ</div>
+        <h1>МЁРТВЫЙ ГОРОД</h1>
+        <p>Подготовка к выживанию…</p>
+        <div class="boot-track"><i></i></div>
+        <small>ЗАГРУЗКА ИГРОВОГО ЯДРА</small>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

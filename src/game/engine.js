@@ -7,6 +7,7 @@ const idx = (x, y) => x + y * MAP_W;
 export class Engine {
   constructor(canvas, G) {
     this.cv = canvas; this.ctx = canvas.getContext('2d');
+    if (!this.ctx) throw new Error('Браузер не смог создать Canvas 2D-контекст. Обновите браузер или отключите режим экономии памяти.');
     this.G = G;
     // полифилл roundRect для старых WebView
     if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
@@ -45,11 +46,40 @@ export class Engine {
       if (!this._running) return;
       let dt = (t - this._last) / 1000; this._last = t;
       dt = clamp(dt, .001, .05);
-      this.G.frame(dt);
-      this.render();
+      try {
+        this.G.frame(dt);
+        this.render();
+      } catch (error) {
+        console.error('[Мёртвый Город] Ошибка игрового цикла:', error);
+        this._running = false;
+        this.drawFatalError(error);
+        return;
+      }
       this._raf = requestAnimationFrame(loop);
     };
     this._raf = requestAnimationFrame(loop);
+  }
+  drawFatalError(error) {
+    try {
+      const c = this.cv;
+      const ctx = this.ctx || c.getContext('2d');
+      if (!ctx) return;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = '#080a07';
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.fillStyle = '#d8d0b0';
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 18px system-ui, sans-serif';
+      ctx.fillText('ИГРОВОЙ ЦИКЛ ОСТАНОВЛЕН', c.width / 2, c.height / 2 - 28);
+      ctx.font = '12px system-ui, sans-serif';
+      const message = String(error && error.message ? error.message : error).slice(0, 100);
+      ctx.fillStyle = '#b5ad8a';
+      ctx.fillText(message, c.width / 2, c.height / 2 + 4, c.width - 32);
+      ctx.fillStyle = '#9a946d';
+      ctx.fillText('Перезагрузите страницу для повторного запуска', c.width / 2, c.height / 2 + 30, c.width - 32);
+    } catch (drawError) {
+      console.error('Не удалось показать экран ошибки:', drawError);
+    }
   }
   stop() { this._running = false; cancelAnimationFrame(this._raf); }
   shake(a) { this.cam.shakeA = Math.min(1, this.cam.shakeA + a); }
