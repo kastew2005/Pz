@@ -1,6 +1,7 @@
 /* МЁРТВЫЙ ГОРОД — устойчивый офлайн-кэш PWA */
-const CACHE = 'mertvy-gorod-v2';
-const PRECACHE = ['/', '/index.html', '/manifest.json'];
+const CACHE = 'mertvy-gorod-v3-bootfix';
+const SCOPE_URL = (path) => new URL(path, self.registration.scope).href;
+const PRECACHE = [SCOPE_URL('./'), SCOPE_URL('index.html'), SCOPE_URL('manifest.json')];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -23,34 +24,42 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET') return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
 
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request).then((response) => {
+  // HTML and executable assets are network-first so a deployment cannot get
+  // stuck on an older cached boot script. Fall back to the current cache offline.
+  const isBootAsset = request.mode === 'navigate' || /\.(?:js|mjs|css|html)$/.test(url.pathname);
+  if (isBootAsset) {
+    event.respondWith((async () => {
+      try {
+        const response = await fetch(request, { cache: 'no-cache' });
         if (response && response.ok) {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put('/', copy)).catch(() => {});
+          const cache = await caches.open(CACHE);
+          await cache.put(request, response.clone()).catch(() => {});
         }
         return response;
-      }).catch(async () => (await caches.match(request)) || (await caches.match('/')) ||
-        new Response('Нет подключения и сохранённой страницы. Откройте игру онлайн хотя бы один раз.', {
-          status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-        }))
-    );
+      } catch (error) {
+        const cache = await caches.open(CACHE);
+        return (await cache.match(request)) || (request.mode === 'navigate' ? await cache.match(SCOPE_URL('index.html')) : null) ||
+          new Response('Нет подключения и сохранённой версии игры. Откройте игру онлайн и обновите страницу.', {
+            status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+          });
+      }
+    })());
     return;
   }
 
-  if (new URL(request.url).origin !== self.location.origin) return;
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request).then((response) => {
-        if (response && response.ok) {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => {});
-        }
-        return response;
-      });
-    })
-  );
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    try {
+      const response = await fetch(request);
+      if (response && response.ok) await cache.put(request, response.clone()).catch(() => {});
+      return response;
+    } catch (error) {
+      return new Response('', { status: 504, statusText: 'Offline' });
+    }
+  })());
 });
